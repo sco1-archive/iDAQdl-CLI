@@ -1,0 +1,13 @@
+# VSCode files
+/.vscode
+
+# Local python files
+/__pycache__
+/iDAQclipy.egg-info
+
+# virtualenv
+/venv
+
+# Temporary testing files
+/test.py
+/testpage.html
