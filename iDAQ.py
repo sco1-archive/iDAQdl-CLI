@@ -14,7 +14,8 @@ from contextlib import ExitStack
 
 @click.version_option(version='0.1')
 @click.command()
-def cli():
+@click.option('--dlall', '-a', is_flag=True)
+def cli(dlall):
     baseurl = r'http://192.168.1.2/'
     logsurl = urllib.parse.urljoin(baseurl, 'logs.cgi')
     click.secho(f'Contacting {logsurl} ...', fg='green')
@@ -39,15 +40,20 @@ def cli():
         for idx, log in enumerate(logfiles):
             click.echo(f'{idx+1}. {log}')
         
-        click.secho('\nSelect log file(s) to download', fg='green')
-        click.secho('Request multiple files with a comma separated list (e.g. 2, 3, 4)', fg='green')
-        logstodownload = click.prompt('?').split(',')
-        logdlidx = [int(idx)-1 for idx in logstodownload]
+        if not dlall:
+            click.secho('\nSelect log file(s) to download', fg='green')
+            click.secho('Request multiple files with a comma separated list (e.g. 2, 3, 4)', fg='green')
+            logstodownload = click.prompt('?').split(',')
+            logdlidx = [int(idx)-1 for idx in logstodownload]
 
-        click.secho('Enter save path', fg='green')
-        dlpath = Path(click.prompt('?', default='.'))
+            click.secho('Enter save path', fg='green')
+            dlpath = Path(click.prompt('?', default='.'))
+        else:
+            logdlidx = [idx for idx in range(len(logfiles))]
+            dlpath = Path('.')  # Use current directory for now
 
         for idx in logdlidx:
+            click.secho('\nDownloading all log files', fg='blue')
             iDAQdownload(logfiles[idx], dlpath)
 
 def parseiDAQlog(html, baseurl):
