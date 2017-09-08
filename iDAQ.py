@@ -1,4 +1,5 @@
 import click
+from sys import exit
 from datetime import datetime
 import pytz
 import urllib.request
@@ -22,8 +23,8 @@ def cli():
             html = request.read()
     except urllib.error.URLError as err:
         if isinstance(err.reason, timeout):
-            click.secho('Insert timeout message here', fg='red', bold=True)
-            raise err
+            click.secho('Request timed out\n\nVerify that the iDAQ is connected and powered on', fg='red', bold=True)
+            exit(1)
         else:
             raise err
 
@@ -33,7 +34,8 @@ def cli():
     
     logfiles = parseiDAQlog(html, baseurl)
     if logfiles:
-        click.echo('\nAvailable Log Files:')
+        click.clear()
+        click.echo('Available Log Files:')
         for idx, log in enumerate(logfiles):
             click.echo(f'{idx+1}. {log}')
         
@@ -100,7 +102,7 @@ def iDAQdownload(logObj, savepath):
             successful = True
     except urllib.error.URLError as err:
         if isinstance(err.reason, timeout):
-           click.secho('Failed', fg='red', bold=True)
+           click.secho('Download Failed: Timeout', fg='red', bold=True)
     
     if successful:
         click.secho('Done', fg='green')
