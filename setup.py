@@ -1,9 +1,9 @@
 from setuptools import setup
 
 setup(
-    name='iDAQclipy',
+    name='iDAQcli',
     version='0.1',
-    py_modules=['iDAQ'],
+    py_modules=['iDAQcli'],
     install_requires=[
         'Click',
         'bs4',
@@ -11,6 +11,6 @@ setup(
     ],
     entry_points='''
         [console_scripts]
-        iDAQ=iDAQ:cli
+        iDAQcli=iDAQcli:cli
     ''',
 )

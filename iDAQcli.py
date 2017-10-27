@@ -1,30 +1,42 @@
-import click
-from sys import exit
-from datetime import datetime
-import pytz
-import urllib.request
-import urllib.parse
-from socket import timeout
-from bs4 import BeautifulSoup
 import re
-import unicodedata
 import shutil
-from pathlib import Path
+import unicodedata
+import urllib.parse
+import urllib.request
 from contextlib import ExitStack
+from datetime import datetime
+from pathlib import Path
+from socket import gethostbyname, gethostname, timeout
+from sys import exit
+
+import click
+import pytz
+from bs4 import BeautifulSoup
+
+_TIMEOUT = 5  # Global timeout, seconds
 
 @click.version_option(version='0.1')
 @click.command()
 @click.option('--dlall', '-a', is_flag=True)
-def cli(dlall):
+@click.option('--dlpath', '-p')
+def cli(dlall, dlpath):
     baseurl = r'http://192.168.1.2/'
     logsurl = urllib.parse.urljoin(baseurl, 'logs.cgi')
     click.secho(f'Contacting {logsurl} ...', fg='green')
     try:
-        with urllib.request.urlopen(logsurl, timeout=5) as request:
+        with urllib.request.urlopen(logsurl, timeout=_TIMEOUT) as request:
             html = request.read()
-    except urllib.error.URLError as err:
-        if isinstance(err.reason, timeout):
-            click.secho('Request timed out\n\nVerify that the iDAQ is connected and powered on', fg='red', bold=True)
+    except (urllib.error.URLError, timeout) as err:
+        if isinstance(err, timeout) or isinstance(err.reason, timeout):
+            click.secho('Request timed out\n\n'
+                        'Verify that the iDAQ is connected and powered on',
+                        fg='red', bold=True)
+            exit(1)
+        if isinstance(err, urllib.error.URLError):
+            click.secho('Cannot connect to iDAQ\n\n'
+                        'Verify iDAQ is connected and powered on\n'
+                        'Verify ethernet adapter is configured with a static IP of 192.168.1.1',
+                        fg='red', bold=True)
             exit(1)
         else:
             raise err
@@ -45,15 +57,11 @@ def cli(dlall):
             click.secho('Request multiple files with a comma separated list (e.g. 2, 3, 4)', fg='green')
             logstodownload = click.prompt('?').split(',')
             logdlidx = [int(idx)-1 for idx in logstodownload]
-
-            click.secho('Enter save path', fg='green')
-            dlpath = Path(click.prompt('?', default='.'))
         else:
+            click.secho('\nDownloading all log files', fg='blue')
             logdlidx = [idx for idx in range(len(logfiles))]
-            dlpath = Path('.')  # Use current directory for now
 
         for idx in logdlidx:
-            click.secho('\nDownloading all log files', fg='blue')
             iDAQdownload(logfiles[idx], dlpath)
 
 def parseiDAQlog(html, baseurl):
@@ -79,7 +87,8 @@ class iDAQlog():
     def __init__(self, baseurl, lognamestr, logurlstr, nbytesstr, logdatetimestr):
         self._dateformat_in  = '%Y-%m-%d %H:%M:%S'
         self._dateformat_out = '%Y-%m-%d %H:%M:%S'
-
+        
+        self.extension = '.iDAQ'
         self.baseurl = baseurl
         self.logname = lognamestr
         self.logurl = logurlstr
@@ -91,24 +100,33 @@ class iDAQlog():
         return f'{self.logname:8s}{mebibytes: 7.2f} MB{self.logdatetime.strftime(self._dateformat_out):>22s}'
 
 def iDAQdownload(logObj, savepath):
+    if not savepath:
+        click.secho('Enter save path', fg='green')
+        savepath = Path(click.prompt('?', default='.'))
+
     click.secho(f'\nEnter file name for {logObj.logname}', fg='green')
-    filename = click.prompt('?', default=logObj.logname + '.iDAQ')
+    click.secho(f'{logObj.extension} will be appended automatically', fg='green')
+    filename = click.prompt('?', default=logObj.logname)
 
     dlurl = urllib.parse.urljoin(logObj.baseurl, logObj.logurl)
-    savefullfile = savepath.joinpath(filename)
+    savefullfile = savepath.joinpath(filename + logObj.extension)
     click.secho(f'Downloading {logObj.logname} to {savefullfile} ... ', fg='blue', nl=False)
 
     try:
         successful = False
         with ExitStack() as stack:
-            response = urllib.request.urlopen(dlurl, timeout=3)
+            response = urllib.request.urlopen(dlurl, timeout=_TIMEOUT)
             fID = open(savefullfile, 'wb')
             
             shutil.copyfileobj(response, fID)
             successful = True
-    except urllib.error.URLError as err:
-        if isinstance(err.reason, timeout):
+    except (urllib.error.URLError, timeout) as err:
+        if isinstance(err, timeout) or isinstance(err.reason, timeout):
            click.secho('Download Failed: Timeout', fg='red', bold=True)
     
     if successful:
         click.secho('Done', fg='green')
+
+# # Add an entry point for use outside of a venv
+if __name__ == '__main__':
+    cli()
