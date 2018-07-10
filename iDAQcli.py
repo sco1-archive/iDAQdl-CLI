@@ -40,10 +40,6 @@ def cli(dlall, dlpath):
             exit(1)
         else:
             raise err
-
-    # htmldump = './testpage.html'
-    # with open(htmldump, 'r') as fID:
-    #     html = fID.readlines()[0]
     
     logfiles = parseiDAQlog(html, baseurl)
     if logfiles:

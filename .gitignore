@@ -8,6 +8,7 @@
 # virtualenv
 /venv
 
-# Temporary testing files
+# Testing files
 /test.py
 /testpage.html
+*.ipynb*
