@@ -6,9 +6,10 @@
 /iDAQclipy.egg-info
 
 # virtualenv
-/venv
+/*env
 
 # Testing files
 /test.py
 /testpage.html
 *.ipynb*
+*.iDAQ
