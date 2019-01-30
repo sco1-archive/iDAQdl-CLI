@@ -1,27 +1,50 @@
 import re
-import shutil
 import unicodedata
 import urllib.parse
 import urllib.request
-from contextlib import ExitStack
 from datetime import datetime
 from pathlib import Path
 from socket import timeout
 from sys import exit
+from typing import List
 
 import click
 import pytz
-
 from bs4 import BeautifulSoup
+from tqdm import tqdm
 
 _TIMEOUT = 5  # Global timeout, seconds
+
+
+class iDAQlog:
+    def __init__(
+        self, base_url: str, log_name: str, log_url: str, n_bytes: str, log_date: str
+    ):
+        self._dateformat_in = r"%Y-%m-%d %H:%M:%S"
+        self._dateformat_out = r"%Y-%m-%d %H:%M:%S"
+
+        self.extension = ".iDAQ"
+        self.baseurl = base_url
+        self.logname = log_name
+        self.logurl = log_url
+        self.nbytes = int(n_bytes)
+        self.log_datetime = datetime.strptime(log_date, self._dateformat_in).replace(
+            tzinfo=pytz.utc
+        )
+
+    def __str__(self):
+        mebibytes = self.nbytes / 1_048_576
+        return (
+            f"{self.logname:8s}{mebibytes: 7.2f} MB"
+            f"{self.log_datetime.strftime(self._dateformat_out):>22s}"
+        )
 
 
 @click.version_option(version="0.1")
 @click.command()
 @click.option("--dlall", "-a", is_flag=True)
 @click.option("--dlpath", "-p")
-def cli(dlall, dlpath):
+def cli(dlall: bool, dlpath: str):
     baseurl = r"http://192.168.1.2/"
     logsurl = urllib.parse.urljoin(baseurl, "logs.cgi")
     click.secho(f"Contacting {logsurl} ...", fg="green")
@@ -31,7 +54,8 @@ def cli(dlall, dlpath):
     except (urllib.error.URLError, timeout) as err:
         if isinstance(err, timeout) or isinstance(err.reason, timeout):
             click.secho(
-                "Request timed out\n\n" "Verify that the iDAQ is connected and powered on",
+                "Request timed out\n\n"
+                "Verify that the iDAQ is connected and powered on",
                 fg="red",
                 bold=True,
             )
@@ -58,7 +82,8 @@ def cli(dlall, dlpath):
         if not dlall:
             click.secho("\nSelect log file(s) to download", fg="green")
             click.secho(
-                "Request multiple files with a comma separated list (e.g. 2, 3, 4)", fg="green"
+                "Request multiple files with a comma separated list (e.g. 2, 3, 4)",
+                fg="green",
             )
             logstodownload = click.prompt("?").split(",")
             logdlidx = [int(idx) - 1 for idx in logstodownload]
@@ -70,7 +95,7 @@ def cli(dlall, dlpath):
             iDAQdownload(logfiles[idx], dlpath)
 
 
-def parseiDAQlog(html, baseurl):
+def parseiDAQlog(html: str, base_url: str) -> List[iDAQlog]:
     soup = BeautifulSoup(html, "html.parser")
     table = soup.findChildren("table")[0]
     rows = table.findChildren("tr")
@@ -84,32 +109,32 @@ def parseiDAQlog(html, baseurl):
         if logtest:
             # Normalize unicode spaces, remove datetime comma separator & split on whitespace
             tmp = unicodedata.normalize("NFKD", cells[1].text).replace(",", "").split()
-            logurl = cells[0].find("a", href=True)["href"]
-            logfiles.append(iDAQlog(baseurl, logtest.string, logurl, tmp[0], f"{tmp[1]} {tmp[2]}"))
+            log_url = cells[0].find("a", href=True)["href"]
+            logfiles.append(
+                iDAQlog(base_url, logtest.string, log_url, tmp[0], f"{tmp[1]} {tmp[2]}")
+            )
 
     return logfiles
 
 
-class iDAQlog:
-    def __init__(self, baseurl, lognamestr, logurlstr, nbytesstr, logdatetimestr):
-        self._dateformat_in = "%Y-%m-%d %H:%M:%S"
-        self._dateformat_out = "%Y-%m-%d %H:%M:%S"
+class DownloadProgressBar(tqdm):
+    """
+    Create a download progress bar with update hook
 
-        self.extension = ".iDAQ"
-        self.baseurl = baseurl
-        self.logname = lognamestr
-        self.logurl = logurlstr
-        self.nbytes = int(nbytesstr)
-        self.logdatetime = datetime.strptime(logdatetimestr, self._dateformat_in).replace(
-            tzinfo=pytz.utc
-        )
+    From tqdm examples: https://github.com/tqdm/tqdm#hooks-and-callbacks
+    """
 
-    def __str__(self):
-        mebibytes = self.nbytes / 1_048_576
-        return f"{self.logname:8s}{mebibytes: 7.2f} MB{self.logdatetime.strftime(self._dateformat_out):>22s}"  # noqa
+    def update_to(self, n_blocks: int = 1, block_size: int = 1, total_size: int = None):
+        """
+        Progress bar update hook.
+        """
+        if total_size is not None:
+            self.total = total_size
+
+        self.update(n_blocks * block_size - self.n)  # Will also set self.n = b * bsize
 
 
-def iDAQdownload(logObj, savepath):
+def iDAQdownload(logObj: iDAQlog, savepath: str = None):
     if not savepath:
         click.secho("Enter save path", fg="green")
         savepath = Path(click.prompt("?", default="."))
@@ -118,17 +143,21 @@ def iDAQdownload(logObj, savepath):
     click.secho(f"{logObj.extension} will be appended automatically", fg="green")
     filename = click.prompt("?", default=logObj.logname)
 
-    dlurl = urllib.parse.urljoin(logObj.baseurl, logObj.logurl)
+    dl_url = urllib.parse.urljoin(logObj.baseurl, logObj.logurl)
     savefullfile = savepath.joinpath(filename + logObj.extension)
-    click.secho(f"Downloading {logObj.logname} to {savefullfile} ... ", fg="blue", nl=False)
+    click.secho(
+        f"Downloading {logObj.logname} to {savefullfile} ... ", fg="blue", nl=False
+    )
 
     try:
         successful = False
-        with ExitStack() as stack:  # noqa
-            response = urllib.request.urlopen(dlurl, timeout=_TIMEOUT)
-            fID = open(savefullfile, "wb")
+        with DownloadProgressBar(
+            unit="b", unit_scale=True, miniters=1, desc=logObj.logname
+        ) as t:
+            urllib.request.urlretrieve(
+                dl_url, filename=savefullfile, reporthook=t.update_to, data=None
+            )
 
-            shutil.copyfileobj(response, fID)
             successful = True
     except (urllib.error.URLError, timeout) as err:
         if isinstance(err, timeout) or isinstance(err.reason, timeout):

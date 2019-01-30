@@ -21,6 +21,7 @@ beautifulsoup4 = "^4.6"
 pytz = "^2018.9"
 click = "^7.0"
 tqdm = "^4.30"
+requests = "^2.21"
 
 [tool.poetry.dev-dependencies]
 flake8 = "^3.6"
