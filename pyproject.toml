@@ -20,15 +20,16 @@ python = "^3.7"
 beautifulsoup4 = "^4.6"
 pytz = "^2018.9"
 click = "^7.0"
+tqdm = "^4.30"
 
 [tool.poetry.dev-dependencies]
 flake8 = "^3.6"
-black = {version = "*", allows-prereleases=true}
-pre-commit = {git = "https://github.com/pre-commit/pre-commit.git"}
 flake8-bugbear = "^18.8"
 flake8-import-order = "^0.18.0"
 flake8-tidy-imports = "^1.1"
 flake8-todo = "^0.7.0"
 flake8-string-format = "^0.2.3"
+black = {version = "*", allows-prereleases=true}
+pre-commit = {git = "https://github.com/pre-commit/pre-commit.git"}
 safety = "^1.8"
 dodgy = "^0.1.9"
