@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "iDAQdl-CLI"
-version = "0.1.0"
+version = "1.0.0"
 description = "Python CLI for downloading files from the Wamore iDAQ"
 authors = ["sco1 <sco1.git@gmail.com>"]
 
