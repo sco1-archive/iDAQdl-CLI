@@ -3,7 +3,7 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 from sys import exit
-from typing import List
+from typing import List, Optional
 from urllib.request import urlretrieve
 
 import click
@@ -93,10 +93,18 @@ def cli(dlall: bool, dlpath: str):
             log_dl_idx = [idx for idx in range(len(log_files))]
 
         for idx in log_dl_idx:
-            iDAQdownload(log_files[idx], dlpath)
+            if not dlpath:
+                dlpath = iDAQdownload(log_files[idx])
+            else:
+                iDAQdownload(log_files[idx], dlpath)
 
 
 def parse_iDAQ_log_page(html: str, base_url: str) -> List[iDAQlog]:
+    """
+    Parse the HTML from the iDAQ logs.cgi page and return a list iDAQlog objects for each log file
+    present on the iDAQ
+    """
+
     soup = BeautifulSoup(html, "html.parser")
     table = soup.findChildren("table")[0]
     rows = table.findChildren("tr")
@@ -135,16 +143,24 @@ class DownloadProgressBar(tqdm):
         self.update(n_blocks * block_size - self.n)  # Will also set self.n = b * bsize
 
 
-def iDAQdownload(logObj: iDAQlog, savepath: str = None):
-    if not savepath:
+def iDAQdownload(logObj: iDAQlog, save_path: Optional[Path] = None) -> Path:
+    """
+    Download the iDAQ log file, represented as iDAQlog, to the directory specified by save_path
+
+    If no save_path is provided, the user is prompted to enter one.
+
+    save_path is returned to allow for chaining of multiple log downloads
+    """
+
+    if not save_path:
         click.secho("Enter save path", fg="green")
-        savepath = Path(click.prompt("?", default="."))
+        save_path = Path(click.prompt("?", default="."))
 
     click.secho(f"\nEnter file name for {logObj.log_name}", fg="green")
     click.secho(f"{logObj.extension} will be appended automatically", fg="green")
     filename = click.prompt("?", default=logObj.log_name)
 
-    save_fullfile = savepath.joinpath(filename + logObj.extension)
+    save_fullfile = save_path.joinpath(filename + logObj.extension)
     click.secho(f"Downloading {logObj.log_name} to {save_fullfile} ... ", fg="blue", nl=False)
 
     successful = False
@@ -164,7 +180,10 @@ def iDAQdownload(logObj: iDAQlog, savepath: str = None):
     if successful:
         click.secho("Done", fg="green")
 
+    # Return save_path to allow chaining of multiple logs
+    return save_path
 
-# # Add an entry point for use outside of a venv
+
+# Add an entry point for use outside of a venv
 if __name__ == "__main__":
     cli()
