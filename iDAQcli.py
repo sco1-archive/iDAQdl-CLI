@@ -1,32 +1,31 @@
 import re
 import unicodedata
-import urllib.parse
-import urllib.request
 from datetime import datetime
 from pathlib import Path
-from socket import timeout
 from sys import exit
 from typing import List
+from urllib.request import urlretrieve
 
 import click
 import pytz
+import requests
 from bs4 import BeautifulSoup
+from requests.exceptions import ConnectionError as ReqConnErr, Timeout
 from tqdm import tqdm
+from yarl import URL
 
 _TIMEOUT = 5  # Global timeout, seconds
 
 
 class iDAQlog:
-    def __init__(
-        self, base_url: str, log_name: str, log_url: str, n_bytes: str, log_date: str
-    ):
+    def __init__(self, base_url: str, log_name: str, log_url: str, n_bytes: str, log_date: str):
         self._dateformat_in = r"%Y-%m-%d %H:%M:%S"
         self._dateformat_out = r"%Y-%m-%d %H:%M:%S"
 
         self.extension = ".iDAQ"
-        self.baseurl = base_url
-        self.logname = log_name
-        self.logurl = log_url
+        self.base_url = URL(base_url)
+        self.log_name = log_name
+        self.log_url = log_url
         self.nbytes = int(n_bytes)
         self.log_datetime = datetime.strptime(log_date, self._dateformat_in).replace(
             tzinfo=pytz.utc
@@ -35,9 +34,13 @@ class iDAQlog:
     def __str__(self):
         mebibytes = self.nbytes / 1_048_576
         return (
-            f"{self.logname:8s}{mebibytes: 7.2f} MB"
+            f"{self.log_name:8s}{mebibytes: 7.2f} MB"
             f"{self.log_datetime.strftime(self._dateformat_out):>22s}"
         )
+
+    @property
+    def dl_url(self):
+        return self.base_url.with_path(self.log_url)
 
 
 @click.version_option(version="0.1")
@@ -45,22 +48,14 @@ class iDAQlog:
 @click.option("--dlall", "-a", is_flag=True)
 @click.option("--dlpath", "-p")
 def cli(dlall: bool, dlpath: str):
-    baseurl = r"http://192.168.1.2/"
-    logsurl = urllib.parse.urljoin(baseurl, "logs.cgi")
-    click.secho(f"Contacting {logsurl} ...", fg="green")
+    base_url = URL(r"http://192.168.1.2/")
+    logs_url = base_url / "logs.cgi"
+    click.secho(f"Contacting {logs_url} ...", fg="green")
     try:
-        with urllib.request.urlopen(logsurl, timeout=_TIMEOUT) as request:
-            html = request.read()
-    except (urllib.error.URLError, timeout) as err:
-        if isinstance(err, timeout) or isinstance(err.reason, timeout):
-            click.secho(
-                "Request timed out\n\n"
-                "Verify that the iDAQ is connected and powered on",
-                fg="red",
-                bold=True,
-            )
-            exit(1)
-        if isinstance(err, urllib.error.URLError):
+        with requests.get(logs_url, timeout=_TIMEOUT) as r:
+            html = r.text
+    except (ReqConnErr, Timeout) as err:
+        if isinstance(err, ReqConnErr):
             click.secho(
                 "Cannot connect to iDAQ\n\n"
                 "Verify iDAQ is connected and powered on\n"
@@ -69,33 +64,39 @@ def cli(dlall: bool, dlpath: str):
                 bold=True,
             )
             exit(1)
+        elif isinstance(err, Timeout):
+            click.secho(
+                "Request timed out\n\n" "Verify that the iDAQ is connected and powered on",
+                fg="red",
+                bold=True,
+            )
+            exit(1)
         else:
             raise err
 
-    logfiles = parseiDAQlog(html, baseurl)
-    if logfiles:
+    log_files = parse_iDAQ_log_page(html, base_url)
+    if log_files:
         click.clear()
         click.echo("Available Log Files:")
-        for idx, log in enumerate(logfiles):
+        for idx, log in enumerate(log_files):
             click.echo(f"{idx+1}. {log}")
 
         if not dlall:
             click.secho("\nSelect log file(s) to download", fg="green")
             click.secho(
-                "Request multiple files with a comma separated list (e.g. 2, 3, 4)",
-                fg="green",
+                "Request multiple files with a comma separated list (e.g. 2, 3, 4)", fg="green"
             )
-            logstodownload = click.prompt("?").split(",")
-            logdlidx = [int(idx) - 1 for idx in logstodownload]
+            logs_to_download = click.prompt("?").split(",")
+            log_dl_idx = [int(idx) - 1 for idx in logs_to_download]
         else:
             click.secho("\nDownloading all log files", fg="blue")
-            logdlidx = [idx for idx in range(len(logfiles))]
+            log_dl_idx = [idx for idx in range(len(log_files))]
 
-        for idx in logdlidx:
-            iDAQdownload(logfiles[idx], dlpath)
+        for idx in log_dl_idx:
+            iDAQdownload(log_files[idx], dlpath)
 
 
-def parseiDAQlog(html: str, base_url: str) -> List[iDAQlog]:
+def parse_iDAQ_log_page(html: str, base_url: str) -> List[iDAQlog]:
     soup = BeautifulSoup(html, "html.parser")
     table = soup.findChildren("table")[0]
     rows = table.findChildren("tr")
@@ -139,29 +140,26 @@ def iDAQdownload(logObj: iDAQlog, savepath: str = None):
         click.secho("Enter save path", fg="green")
         savepath = Path(click.prompt("?", default="."))
 
-    click.secho(f"\nEnter file name for {logObj.logname}", fg="green")
+    click.secho(f"\nEnter file name for {logObj.log_name}", fg="green")
     click.secho(f"{logObj.extension} will be appended automatically", fg="green")
-    filename = click.prompt("?", default=logObj.logname)
+    filename = click.prompt("?", default=logObj.log_name)
 
-    dl_url = urllib.parse.urljoin(logObj.baseurl, logObj.logurl)
-    savefullfile = savepath.joinpath(filename + logObj.extension)
-    click.secho(
-        f"Downloading {logObj.logname} to {savefullfile} ... ", fg="blue", nl=False
-    )
+    save_fullfile = savepath.joinpath(filename + logObj.extension)
+    click.secho(f"Downloading {logObj.log_name} to {save_fullfile} ... ", fg="blue", nl=False)
 
+    successful = False
     try:
-        successful = False
-        with DownloadProgressBar(
-            unit="b", unit_scale=True, miniters=1, desc=logObj.logname
-        ) as t:
-            urllib.request.urlretrieve(
-                dl_url, filename=savefullfile, reporthook=t.update_to, data=None
+        with DownloadProgressBar(unit="b", unit_scale=True, miniters=1, desc=logObj.log_name) as t:
+            urlretrieve(
+                logObj.dl_url.human_repr(),
+                filename=save_fullfile,
+                reporthook=t.update_to,
+                data=None,
             )
 
             successful = True
-    except (urllib.error.URLError, timeout) as err:
-        if isinstance(err, timeout) or isinstance(err.reason, timeout):
-            click.secho("Download Failed: Timeout", fg="red", bold=True)
+    except Timeout:
+        click.secho("Download Failed: Timeout", fg="red", bold=True)
 
     if successful:
         click.secho("Done", fg="green")
