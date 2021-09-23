@@ -10,7 +10,7 @@ from src.iDAQcli import get_logs_page
 LOGS_URL = httpx.URL(r"http://192.168.1.2/logs.cgi")
 DL_PATH = Path()
 
-SAMPLE_PAGE = Path("./tests/testpage.html")
+SAMPLE_PAGE = Path("./tests/has_logs.html")
 SAMPLE_HTML = SAMPLE_PAGE.read_text()
 
 

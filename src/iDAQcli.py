@@ -14,6 +14,7 @@ _TIMEOUT = 5  # Global timeout, seconds
 
 
 class iDAQlog:  # noqa: N801
+    """Helper container for on-device iDAQ log metadata."""
 
     _dateformat_in = r"%Y-%m-%d %H:%M:%S"
     _dateformat_out = r"%Y-%m-%d %H:%M:%S"
@@ -25,6 +26,7 @@ class iDAQlog:  # noqa: N801
         self.base_url = base_url
         self.log_name = log_name
         self.log_url = log_url
+        self.dl_url = self.base_url.copy_with(path=self.log_url)
         self.nbytes = int(n_bytes)
         self.log_datetime = datetime.strptime(log_date, self._dateformat_in).replace(
             tzinfo=timezone.utc
@@ -37,12 +39,13 @@ class iDAQlog:  # noqa: N801
             f"{self.log_datetime.strftime(self._dateformat_out):>22s}"
         )
 
-    @property
-    def dl_url(self) -> httpx.URL:
-        return self.base_url.copy_with(path=self.log_url)
-
 
 def get_logs_page(logs_url: httpx.URL) -> str:
+    """
+    Attempt to connect to the iDAQ & download the log page HTML for parsing.
+
+    Common iDAQ connection issues are caught here & will abort the CLI if encountered.
+    """
     click.secho(f"Contacting {logs_url} ...", fg="green")
     try:
         r = httpx.get(logs_url, timeout=_TIMEOUT)
@@ -80,7 +83,7 @@ def get_logs_page(logs_url: httpx.URL) -> str:
 @click.command()
 @click.option("--dlall", "-a", is_flag=True)
 @click.option("--dlpath", "-p", type=Path)
-def cli(dlall: bool, dlpath: Path) -> None:
+def cli(dlall: bool, dlpath: Path) -> None:  # noqa: D103
     base_url = httpx.URL(r"http://192.168.1.2/")
     logs_url = base_url.copy_with(path="/logs.cgi")
     html = get_logs_page(logs_url)

@@ -8,7 +8,8 @@ import pytest
 from src.iDAQcli import iDAQlog, parse_iDAQ_log_page
 
 BASE_URL = httpx.URL(r"http://192.168.1.2/")
-TEST_PAGE = Path("./tests/testpage.html")
+TEST_PAGE_LOGS = Path("./tests/has_logs.html")
+TEST_PAGE_NO_LOGS = Path("./tests/no_logs.html")
 
 TRUTH_LOGS = [
     [
@@ -40,13 +41,8 @@ TRUTH_LOGS = [
 ]
 
 
-@pytest.fixture
-def parsed_log_page() -> t.List[iDAQlog]:
-    src = TEST_PAGE.read_text()
-    return parse_iDAQ_log_page(src, BASE_URL)
-
-
-def test_log_page_parsing(parsed_log_page: t.List[iDAQlog]) -> None:
+def test_has_logs() -> None:
+    parsed_log_page = parse_iDAQ_log_page(TEST_PAGE_LOGS.read_text(), BASE_URL)
     assert len(parsed_log_page) == len(TRUTH_LOGS)
 
     for log, truth_spec in zip(parsed_log_page, TRUTH_LOGS):
@@ -58,3 +54,8 @@ def test_log_page_parsing(parsed_log_page: t.List[iDAQlog]) -> None:
         assert log.dl_url == dl_url
 
         assert str(log) == formatted_str
+
+
+def test_no_logs() -> None:
+    parsed_log_page = parse_iDAQ_log_page(TEST_PAGE_NO_LOGS.read_text(), BASE_URL)
+    assert len(parsed_log_page) == 0

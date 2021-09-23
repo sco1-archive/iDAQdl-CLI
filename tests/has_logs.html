@@ -1,0 +1,54 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+
+<head>
+    <title>Wamore Data Acquisition Module</title>
+    <link rel=stylesheet type=text/css href=wamore.css>
+    <meta http-equiv=pragma content=no-cache>
+</head>
+
+<body>
+    <center>
+        <form action=logs.cgi method=post onSubmit="return confirm('Erase All Files?')">
+            <table class=level1 align=center>
+                <tr>
+                    <td class=black><a href=http://www.wamore.com><img src=wamore.png alt=wamore.com border=0></a></td>
+                    <td valign=bottom nowrap class=black>
+                        <div align=right><a class=link href=logs.cgi>Logs</a>&nbsp;|&nbsp;<a class=link
+                                href=settings.cgi>Settings</a>&nbsp;|&nbsp;<a class=link
+                                href=raw.cgi>Raw</a>&nbsp;|&nbsp;<a class=link href=help.html>Help</a></div>
+                    </td>
+                </tr>
+                <tr class=black>
+                    <td colspan=2></td>
+                </tr>
+                <tr>
+                    <td colspan=2 align=right>Wamore -- iDAQ v0.6 20130205-131623</td>
+                </tr>
+                <tr class=black>
+                    <td colspan=2></td>
+                </tr>
+                <tr class=active align=left>
+                    <td><a class=link href=/WAMORE/DAQ.INI> DAQ.INI </a></td>
+                    <td align=right>99&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<i>2017-08-23, 18:32:18</i></td>
+                </tr>
+                <tr class=active align=left>
+                    <td><a class=link href=/WAMORE/LOG.001> LOG.001 </a></td>
+                    <td align=right>447421&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<i>2017-08-24, 21:30:22</i></td>
+                </tr>
+                <tr class=active align=left>
+                    <td><a class=link href=/WAMORE/LOG.002> LOG.002 </a></td>
+                    <td align=right>90293&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<i>2017-08-24, 21:31:14</i></td>
+                </tr>
+                <tr class=black>
+                    <td colspan=2></td>
+                </tr>
+                <tr>
+                    <td colspan=2 align=center><input class=input type=submit name=format value="Erase All"></td>
+                </tr>
+            </table>
+        </form>
+    </center>
+</body>
+
+</html>
