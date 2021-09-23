@@ -3,7 +3,6 @@ import typing as t
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
-from sys import exit
 from urllib.request import urlretrieve
 
 import click
@@ -43,13 +42,7 @@ class iDAQlog:  # noqa: N801
         return self.base_url.copy_with(path=self.log_url)
 
 
-@click.version_option(version="0.1")
-@click.command()
-@click.option("--dlall", "-a", is_flag=True)
-@click.option("--dlpath", "-p", type=Path)
-def cli(dlall: bool, dlpath: Path) -> None:
-    base_url = httpx.URL(r"http://192.168.1.2/")
-    logs_url = base_url.copy_with(path="/logs.cgi")
+def get_logs_page(logs_url: httpx.URL) -> str:
     click.secho(f"Contacting {logs_url} ...", fg="green")
     try:
         r = httpx.get(logs_url, timeout=_TIMEOUT)
@@ -57,22 +50,40 @@ def cli(dlall: bool, dlpath: Path) -> None:
     except httpx.HTTPError as err:
         if isinstance(err, httpx.NetworkError):
             click.secho(
-                "Cannot connect to iDAQ\n\n"
-                "Verify iDAQ is connected and powered on\n"
-                "Verify ethernet adapter is configured with a static IP of 192.168.1.1",
+                (
+                    "Cannot connect to iDAQ\n\n"
+                    "Verify iDAQ is connected and powered on\n"
+                    "Verify ethernet adapter is configured with a static IP of 192.168.1.1"
+                ),
                 fg="red",
                 bold=True,
             )
-            exit(1)
+            raise click.Abort()
         elif isinstance(err, httpx.TimeoutException):
             click.secho(
-                "Request timed out\n\n" "Verify that the iDAQ is connected and powered on",
+                (
+                    "Request to iDAQ timed out\n\n"
+                    "Verify that your computer's only internet connection is to the iDAQ"
+                ),
                 fg="red",
                 bold=True,
             )
-            exit(1)
+            raise click.Abort()
         else:
-            raise err
+            # Shouldn't get here but catch just in case
+            raise click.Abort(f"Unhandled HTTP error: {err}")
+
+    return html
+
+
+@click.version_option(version="0.1")
+@click.command()
+@click.option("--dlall", "-a", is_flag=True)
+@click.option("--dlpath", "-p", type=Path)
+def cli(dlall: bool, dlpath: Path) -> None:
+    base_url = httpx.URL(r"http://192.168.1.2/")
+    logs_url = base_url.copy_with(path="/logs.cgi")
+    html = get_logs_page(logs_url)
 
     log_files = parse_iDAQ_log_page(html, base_url)
     if log_files:

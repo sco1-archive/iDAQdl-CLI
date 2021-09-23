@@ -22,6 +22,7 @@ TRUTH_LOGS = [
             ).replace(tzinfo=timezone.utc),
         },
         httpx.URL(r"http://192.168.1.2/WAMORE/LOG.001"),
+        "LOG.001    0.43 MB   2017-08-24 21:30:22",
     ],
     [
         {
@@ -34,6 +35,7 @@ TRUTH_LOGS = [
             ).replace(tzinfo=timezone.utc),
         },
         httpx.URL(r"http://192.168.1.2/WAMORE/LOG.002"),
+        "LOG.002    0.09 MB   2017-08-24 21:31:14",
     ],
 ]
 
@@ -48,9 +50,11 @@ def test_log_page_parsing(parsed_log_page: t.List[iDAQlog]) -> None:
     assert len(parsed_log_page) == len(TRUTH_LOGS)
 
     for log, truth_spec in zip(parsed_log_page, TRUTH_LOGS):
-        truth_attrs, dl_url = truth_spec
+        truth_attrs, dl_url, formatted_str = truth_spec
 
         for truth_attr, val in truth_attrs.items():  # type: ignore[attr-defined]
             assert getattr(log, truth_attr) == val
 
         assert log.dl_url == dl_url
+
+        assert str(log) == formatted_str
