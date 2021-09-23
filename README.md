@@ -48,7 +48,7 @@ This package assumes the user's ethernet adapter is configured with a static IP 
 A guided CLI can be accessed by invoking `iDAQcli.py` without any arguments:
 
 ```
-$ python iDAQcli.py
+$ python ./src/iDAQcli.py
 ```
 
 ### Command Line Arguments

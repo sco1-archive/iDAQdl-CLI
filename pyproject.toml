@@ -26,7 +26,6 @@ beautifulsoup4 = "^4.10"
 click = "^8.0"
 httpx = "^0.19"
 tqdm = "^4.62"
-yarl = "^1.6"
 
 [tool.poetry.dev-dependencies]
 black = "^21.7b0"
@@ -51,6 +50,7 @@ line-length = 100
 
 [tool.isort]
 case_sensitive = true
+known_first_party = "src,tests"
 no_lines_before = "LOCALFOLDER"
 order_by_type = false
 profile = "black"

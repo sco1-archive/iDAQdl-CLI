@@ -10,20 +10,20 @@ import click
 import httpx
 from bs4 import BeautifulSoup
 from tqdm import tqdm
-from yarl import URL
 
 _TIMEOUT = 5  # Global timeout, seconds
 
 
 class iDAQlog:  # noqa: N801
-    def __init__(
-        self, base_url: str, log_name: str, log_url: str, n_bytes: str, log_date: str
-    ) -> None:
-        self._dateformat_in = r"%Y-%m-%d %H:%M:%S"
-        self._dateformat_out = r"%Y-%m-%d %H:%M:%S"
 
+    _dateformat_in = r"%Y-%m-%d %H:%M:%S"
+    _dateformat_out = r"%Y-%m-%d %H:%M:%S"
+
+    def __init__(
+        self, base_url: httpx.URL, log_name: str, log_url: str, n_bytes: str, log_date: str
+    ) -> None:
         self.extension = ".iDAQ"
-        self.base_url = URL(base_url)
+        self.base_url = base_url
         self.log_name = log_name
         self.log_url = log_url
         self.nbytes = int(n_bytes)
@@ -39,17 +39,17 @@ class iDAQlog:  # noqa: N801
         )
 
     @property
-    def dl_url(self) -> URL:
-        return self.base_url.with_path(self.log_url)
+    def dl_url(self) -> httpx.URL:
+        return self.base_url.copy_with(path=self.log_url)
 
 
 @click.version_option(version="0.1")
 @click.command()
 @click.option("--dlall", "-a", is_flag=True)
-@click.option("--dlpath", "-p")
-def cli(dlall: bool, dlpath: str) -> None:
-    base_url = URL(r"http://192.168.1.2/")
-    logs_url = base_url / "logs.cgi"
+@click.option("--dlpath", "-p", type=Path)
+def cli(dlall: bool, dlpath: Path) -> None:
+    base_url = httpx.URL(r"http://192.168.1.2/")
+    logs_url = base_url.copy_with(path="/logs.cgi")
     click.secho(f"Contacting {logs_url} ...", fg="green")
     try:
         r = httpx.get(logs_url, timeout=_TIMEOUT)
@@ -99,7 +99,7 @@ def cli(dlall: bool, dlpath: str) -> None:
                 iDAQdownload(log_files[idx], dlpath)
 
 
-def parse_iDAQ_log_page(html: str, base_url: str) -> t.List[iDAQlog]:
+def parse_iDAQ_log_page(html: str, base_url: httpx.URL) -> t.List[iDAQlog]:
     """Parse the HTML from the iDAQ logs.cgi page and return a list iDAQlog objects."""
     soup = BeautifulSoup(html, "html.parser")
     table = soup.findChildren("table")[0]
@@ -122,14 +122,16 @@ def parse_iDAQ_log_page(html: str, base_url: str) -> t.List[iDAQlog]:
     return logfiles
 
 
-class DownloadProgressBar(tqdm):
+class DownloadProgressBar(tqdm):  # pragma: no cover
     """
     Create a download progress bar with update hook.
 
     From tqdm examples: https://github.com/tqdm/tqdm#hooks-and-callbacks
     """
 
-    def update_to(self, n_blocks: int = 1, block_size: int = 1, total_size: int = None) -> None:
+    def update_to(
+        self, n_blocks: int = 1, block_size: int = 1, total_size: t.Optional[int] = None
+    ) -> None:
         """Progress bar update hook."""
         if total_size is not None:
             self.total = total_size
@@ -160,7 +162,7 @@ def iDAQdownload(log_obj: iDAQlog, save_path: t.Optional[Path] = None) -> Path:
     try:
         with DownloadProgressBar(unit="b", unit_scale=True, miniters=1, desc=log_obj.log_name) as t:
             urlretrieve(
-                log_obj.dl_url.human_repr(),
+                str(log_obj.dl_url),
                 filename=save_fullfile,
                 reporthook=t.update_to,
                 data=None,
@@ -178,5 +180,5 @@ def iDAQdownload(log_obj: iDAQlog, save_path: t.Optional[Path] = None) -> Path:
 
 
 # Add an entry point for use outside of a venv
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     cli()
