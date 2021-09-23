@@ -1,15 +1,46 @@
-# VSCode files
-/.vscode
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
 
-# Local python files
-/__pycache__
-/iDAQclipy.egg-info
+# Packaging
+*.egg-info/
+build/
+dist/
 
-# virtualenv
-/*env
+# Jupyter
+.ipynb_checkpoints
+*.ipynb
 
-# Testing files
-/test.py
-/testpage.html
-*.ipynb*
-*.iDAQ
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+
+# jetbrains
+.idea/
+.DS_Store
+
+# vscode
+.vscode
+
+# logs
+*.log
+test-*.xml
+
+# Unit test / coverage reports
+.coverage
+.tox
+.coverage.*
+coverage.xml
+cov.xml
+htmlcov
+.pytest_cache/
+
+# mypy
+.mypy_cache/

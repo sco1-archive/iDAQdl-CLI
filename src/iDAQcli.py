@@ -1,24 +1,24 @@
 import re
+import typing as t
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from sys import exit
-from typing import List, Optional
 from urllib.request import urlretrieve
 
 import click
-import pytz
-import requests
+import httpx
 from bs4 import BeautifulSoup
-from requests.exceptions import ConnectionError as ReqConnErr, Timeout
 from tqdm import tqdm
 from yarl import URL
 
 _TIMEOUT = 5  # Global timeout, seconds
 
 
-class iDAQlog:
-    def __init__(self, base_url: str, log_name: str, log_url: str, n_bytes: str, log_date: str):
+class iDAQlog:  # noqa: N801
+    def __init__(
+        self, base_url: str, log_name: str, log_url: str, n_bytes: str, log_date: str
+    ) -> None:
         self._dateformat_in = r"%Y-%m-%d %H:%M:%S"
         self._dateformat_out = r"%Y-%m-%d %H:%M:%S"
 
@@ -28,10 +28,10 @@ class iDAQlog:
         self.log_url = log_url
         self.nbytes = int(n_bytes)
         self.log_datetime = datetime.strptime(log_date, self._dateformat_in).replace(
-            tzinfo=pytz.utc
+            tzinfo=timezone.utc
         )
 
-    def __str__(self):
+    def __str__(self) -> str:
         mebibytes = self.nbytes / 1_048_576
         return (
             f"{self.log_name:8s}{mebibytes: 7.2f} MB"
@@ -39,7 +39,7 @@ class iDAQlog:
         )
 
     @property
-    def dl_url(self):
+    def dl_url(self) -> URL:
         return self.base_url.with_path(self.log_url)
 
 
@@ -47,15 +47,15 @@ class iDAQlog:
 @click.command()
 @click.option("--dlall", "-a", is_flag=True)
 @click.option("--dlpath", "-p")
-def cli(dlall: bool, dlpath: str):
+def cli(dlall: bool, dlpath: str) -> None:
     base_url = URL(r"http://192.168.1.2/")
     logs_url = base_url / "logs.cgi"
     click.secho(f"Contacting {logs_url} ...", fg="green")
     try:
-        with requests.get(logs_url, timeout=_TIMEOUT) as r:
-            html = r.text
-    except (ReqConnErr, Timeout) as err:
-        if isinstance(err, ReqConnErr):
+        r = httpx.get(logs_url, timeout=_TIMEOUT)
+        html = r.text
+    except httpx.HTTPError as err:
+        if isinstance(err, httpx.NetworkError):
             click.secho(
                 "Cannot connect to iDAQ\n\n"
                 "Verify iDAQ is connected and powered on\n"
@@ -64,7 +64,7 @@ def cli(dlall: bool, dlpath: str):
                 bold=True,
             )
             exit(1)
-        elif isinstance(err, Timeout):
+        elif isinstance(err, httpx.TimeoutException):
             click.secho(
                 "Request timed out\n\n" "Verify that the iDAQ is connected and powered on",
                 fg="red",
@@ -99,12 +99,8 @@ def cli(dlall: bool, dlpath: str):
                 iDAQdownload(log_files[idx], dlpath)
 
 
-def parse_iDAQ_log_page(html: str, base_url: str) -> List[iDAQlog]:
-    """
-    Parse the HTML from the iDAQ logs.cgi page and return a list iDAQlog objects for each log file
-    present on the iDAQ
-    """
-
+def parse_iDAQ_log_page(html: str, base_url: str) -> t.List[iDAQlog]:
+    """Parse the HTML from the iDAQ logs.cgi page and return a list iDAQlog objects."""
     soup = BeautifulSoup(html, "html.parser")
     table = soup.findChildren("table")[0]
     rows = table.findChildren("tr")
@@ -128,53 +124,50 @@ def parse_iDAQ_log_page(html: str, base_url: str) -> List[iDAQlog]:
 
 class DownloadProgressBar(tqdm):
     """
-    Create a download progress bar with update hook
+    Create a download progress bar with update hook.
 
     From tqdm examples: https://github.com/tqdm/tqdm#hooks-and-callbacks
     """
 
-    def update_to(self, n_blocks: int = 1, block_size: int = 1, total_size: int = None):
-        """
-        Progress bar update hook.
-        """
+    def update_to(self, n_blocks: int = 1, block_size: int = 1, total_size: int = None) -> None:
+        """Progress bar update hook."""
         if total_size is not None:
             self.total = total_size
 
         self.update(n_blocks * block_size - self.n)  # Will also set self.n = b * bsize
 
 
-def iDAQdownload(logObj: iDAQlog, save_path: Optional[Path] = None) -> Path:
+def iDAQdownload(log_obj: iDAQlog, save_path: t.Optional[Path] = None) -> Path:
     """
-    Download the iDAQ log file, represented as iDAQlog, to the directory specified by save_path
+    Download the iDAQ log file, represented as `iDAQlog`, to the directory specified by `save_path`.
 
-    If no save_path is provided, the user is prompted to enter one.
+    If no `save_path` is provided, the user is prompted to enter one.
 
-    save_path is returned to allow for chaining of multiple log downloads
+    `save_path` is returned to allow for chaining of multiple log downloads
     """
-
     if not save_path:
         click.secho("Enter save path", fg="green")
         save_path = Path(click.prompt("?", default="."))
 
-    click.secho(f"\nEnter file name for {logObj.log_name}", fg="green")
-    click.secho(f"{logObj.extension} will be appended automatically", fg="green")
-    filename = click.prompt("?", default=logObj.log_name)
+    click.secho(f"\nEnter file name for {log_obj.log_name}", fg="green")
+    click.secho(f"{log_obj.extension} will be appended automatically", fg="green")
+    filename = click.prompt("?", default=log_obj.log_name)
 
-    save_fullfile = save_path.joinpath(filename + logObj.extension)
-    click.secho(f"Downloading {logObj.log_name} to {save_fullfile} ... ", fg="blue", nl=False)
+    save_fullfile = save_path.joinpath(filename + log_obj.extension)
+    click.secho(f"Downloading {log_obj.log_name} to {save_fullfile} ... ", fg="blue", nl=False)
 
     successful = False
     try:
-        with DownloadProgressBar(unit="b", unit_scale=True, miniters=1, desc=logObj.log_name) as t:
+        with DownloadProgressBar(unit="b", unit_scale=True, miniters=1, desc=log_obj.log_name) as t:
             urlretrieve(
-                logObj.dl_url.human_repr(),
+                log_obj.dl_url.human_repr(),
                 filename=save_fullfile,
                 reporthook=t.update_to,
                 data=None,
             )
 
             successful = True
-    except Timeout:
+    except httpx.TimeoutException:
         click.secho("Download Failed: Timeout", fg="red", bold=True)
 
     if successful:
